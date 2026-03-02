@@ -9,24 +9,75 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 scores = read.csv('scores.csv')
+postszn = read.csv("bowls25.csv")
 ```
 
-## R Markdown
+# Linear Regression in College Football Prediction
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+The use of linear regression models in sports prediction is well documented and proved as a consistent and overall reliable model. The goal of this project is to analyze which predictors do best in forecasting the margin of scores between home team and away team. For this research, the regular season data will be built to train the model which will then be evaluated on playoff and bowl games (2025 season only).
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## Basic Model
 
-```{r cars}
-summary(scores)
+The first, most basic model to be fit is a multiple linear regression where observed score margin is explained by a difference in 2 team strengths. 
+
+$$M_{ij} = S_i - S_j + \epsilon_{ij} $$
+Where:
+
+- $M_{ij}$ is the observed scoring margin for team *i* playing at home against team *j*
+
+- $S_i,S_j$ are strengths of team *i* and *j* respectively
+
+- $\epsilon_{ij}$ is the unobserved, mean-zero random error for the game between *i* and *j*
+
+### Rankings: 
+
+Below is this model's top 25 rankings, with the strength estimate representing the expected margin of victory against a true average team.
+
+
+```{r Basic Model set-up, echo=FALSE}
+basic.df = scores[scores$FBS == 1,c("home","away","margin")]
+N = nrow(basic.df)
+teams = unique(basic.df$home)
+nteams = length(teams)
+home = basic.df$home
+away = basic.df$away
+
+X = matrix(0, nrow = N, ncol = nteams)
+i = 1
+for(team in teams){
+X[,i] = (home == team) -
+  (away == team)
+i = i + 1
+}
+
+y = basic.df$margin
+basic.model = lm(y ~ X + 0)
+b = coef(basic.model)
+b = b - mean(b)
+basic.ranks = data.frame("Team" = teams, "Strength" = b, row.names = 1:nteams)
+head(arrange(basic.ranks,-Strength),25)
 ```
 
-## Including Plots
 
-You can also embed  plots, for example:
+### Playoff Accuracy
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r echo = F}
+basic.evaluation = postszn %>% 
+  mutate(margin = h.score - a.score) %>% 
+  left_join(basic.ranks, by = join_by(home == Team)) %>% 
+  dplyr::select(home,away,margin,homestrength = Strength) %>% 
+  left_join(basic.ranks, by = join_by(away == Team)) %>% 
+  dplyr::select(home,away,margin,homestrength, awaystrength = Strength) %>% 
+  mutate(pred = homestrength - awaystrength) %>% 
+  filter(!is.na(homestrength))
+
+accuracy = mean(sign(basic.evaluation$margin) == sign(basic.evaluation$pred))
+MSE = mean((basic.evaluation$margin - basic.evaluation$pred)^2)
+r2 = cor(basic.evaluation$margin, basic.evaluation$pred)^2
+cat("Basic Model: ", "\n",
+    "Accuracy:",accuracy,"\n",
+    "MSE:",MSE,"\n",
+    "R-Sq. :",r2, "\n")
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Now that we have a baseline for postseason prediction
