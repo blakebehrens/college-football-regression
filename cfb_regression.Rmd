@@ -157,8 +157,98 @@ data.frame("Basic_Model" = c(accuracy,MSE,r2,AIC,BIC),
 
 To my surprise, adding the term for a "home field advantage" reduces model accuracy and increases the mean squared error. My assumption is that since the model is trained on 99.1% of non-neutral games, the estimate for the home field advantage parameter is biased. Therefore, it does not perform well on post-season games where only 10.8% are played at home. I will also note that of the 5 post season games played with a home field advantage, this model correctly picked the winner 4 times, with mean squared error of 94.5. In summary, a model like this would perhaps perform better in NFL post-season prediction where only 1 game (Super Bowl) can be played at a neutral site.
 
-## Model 3: 
+## Model 3: AP Ranks as factors
+
+Now, I will investigate how AP rankings can assist the linear model. I will no longer be including the home field parameter model. Further, since AP ranks teams 1-25 and therefore most teams don't have an assigned rank, I will instead use indicators that say whether or not AP ranked that team:
+
+$$M_{ij} = S_i - S_j + [I(\text{AP}_i) * A] - [I(\text{AP}_j) * A] + \epsilon_{ij}$$
+
+or:
+
+$$M_{ij} = S_i - S_j + A * (I(\text{AP}_i) - I(\text{AP}_j)) + \epsilon_{ij}$$
+
+Where:
+
+- $I(\text{AP}_i)$ and $I(\text{AP}_j)$ are indicator functions of whether team *i* and *j* are ranked, respectively
+
+- $A$ is the effect on the margin from a team being ranked on the AP poll
+
+```{r echo=F}
+ap.df = scores[,c("home","away",'margin','home_AP','away_AP')]
+ap.df$home_AP = as.numeric(!is.na(ap.df$home_AP))
+ap.df$away_AP = as.numeric(!is.na(ap.df$away_AP))
+ap.df$AP.diff = ap.df$home_AP - ap.df$away_AP
+
+N = nrow(ap.df)
+teams = unique(ap.df$home)
+nteams = length(teams)
+home = ap.df$home
+away = ap.df$away
+
+X = matrix(0, nrow = N, ncol = nteams+1)
+i = 2
+for(team in teams){
+  X[,i] = (home == team) - (away == team)
+  i = i + 1
+}
+
+X[,1] = ap.df$AP.diff
+y = ap.df$margin
+ap.model = lm(y ~ X + 0)
+
+b = coef(ap.model)[-1]
+AP = coef(ap.model)[1]
+
+b = b - mean(b)
+ap.ranks = data.frame("Team" = teams, "Strength" = b, row.names = 1:nteams)
+head(arrange(ap.ranks,-Strength),10)
+```
+
+Here we notice that the top 10 is different (excluding the top 3 teams, Indiana, Ohio State, and Texas Tech). It appears AP rank had more impact on the parameter estimation than including homefield advantage did.
 
 
 
+```{r echo=F}
+ap.postszn = data.frame(
+    Team = c(
+    'IU','UGA','OSU','TTU','ORE',
+    'MISS','TA&M','OU','ND','MIA',
+    'ALA','BYU','VAN','TEX','UTAH',
+    'USC','TULN','MICH','JMU','UVA',
+    'ARIZ','NAVY','UNT','GT','MIZ'
+  ),
+  Rank = 1:25
+)
 
+ap.evaluation = postszn %>% 
+  mutate(margin = h.score - a.score) %>% 
+  left_join(ap.ranks, by = join_by(home == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength = Strength) %>% 
+  left_join(hfa.ranks, by = join_by(away == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength, awaystrength = Strength) %>% 
+  mutate(homegame = 1- neutral,
+         pred = homestrength - awaystrength + (H * homegame)) %>% 
+  filter(!is.na(homestrength)) %>% 
+  left_join(ap.postszn, by = join_by(home == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength, awaystrength, home.ap = Rank) %>% 
+  left_join(ap.postszn, by = join_by(away == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength, awaystrength, home.ap, away.ap = Rank) %>% 
+  mutate(
+    home.ap = as.numeric(!is.na(home.ap)),
+    away.ap = as.numeric(!is.na(away.ap)),
+    AP.diff = home.ap - away.ap,
+    pred = homestrength - awaystrength + (AP * AP.diff)
+  )
+
+accuracy.a = mean(sign(ap.evaluation$margin) == sign(ap.evaluation$pred))
+MSE.a = mean((ap.evaluation$margin - ap.evaluation$pred)^2)
+r2.a = cor(ap.evaluation$margin, ap.evaluation$pred)^2
+n.a = nrow(ap.df)
+p.a = length(ap.model$coefficients)
+rss.a = sum(ap.model$residuals)
+AIC.a <- n.a * log(rss.a / n.a) + 2 * p.a
+BIC.a <- n.a * log(rss.a / n.a) + p.a * log(n.a)
+data.frame("Basic_Model" = c(accuracy,MSE,r2,AIC,BIC),
+           "Home_Field_Model" = c(accuracy.a,MSE.a,r2.a,AIC.a,BIC.a),
+           row.names = c("Accuracy","MSE","R-Squared","AIC","BIC"))
+```

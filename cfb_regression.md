@@ -114,4 +114,53 @@ with mean squared error of 94.5. In summary, a model like this would
 perhaps perform better in NFL post-season prediction where only 1 game
 (Super Bowl) can be played at a neutral site.
 
-## Model 3:
+## Model 3: AP Ranks as factors
+
+Now, I will investigate how AP rankings can assist the linear model. I
+will no longer be including the home field parameter model. Further,
+since AP ranks teams 1-25 and therefore most teams don’t have an
+assigned rank, I will instead use indicators that say whether or not AP
+ranked that team:
+
+``` math
+M_{ij} = S_i - S_j + [I(\text{AP}_i) * A] - [I(\text{AP}_j) * A] + \epsilon_{ij}
+```
+
+or:
+
+``` math
+M_{ij} = S_i - S_j + A * (I(\text{AP}_i) - I(\text{AP}_j)) + \epsilon_{ij}
+```
+
+Where:
+
+- $`I(\text{AP}_i)`$ and $`I(\text{AP}_j)`$ are indicator functions of
+  whether team *i* and *j* are ranked, respectively
+
+- $`A`$ is the effect on the margin from a team being ranked on the AP
+  poll
+
+<!-- -->
+
+    ##    Team Strength
+    ## 1    IU 42.94552
+    ## 2   OSU 39.46485
+    ## 3   TTU 37.46618
+    ## 4    ND 36.30404
+    ## 5   ORE 34.04779
+    ## 6   MIA 30.43378
+    ## 7   ALA 27.67852
+    ## 8  UTAH 27.26500
+    ## 9  TA&M 26.57405
+    ## 10  UGA 26.48997
+
+Here we notice that the top 10 is different (excluding the top 3 teams,
+Indiana, Ohio State, and Texas Tech). It appears AP rank had more impact
+on the parameter estimation than including homefield advantage did.
+
+    ##            Basic_Model Home_Field_Model
+    ## Accuracy     0.6000000        0.5434783
+    ## MSE        206.7454302      250.8895222
+    ## R-Squared    0.2326878        0.1090773
+    ## AIC       1067.3772498     1072.6925024
+    ## BIC       1691.4466536     1728.6272650
