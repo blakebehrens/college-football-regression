@@ -151,7 +151,8 @@ rss.h = sum(hfa.model$residuals)
 AIC.h <- n.h * log(rss.h / n.h) + 2 * p.h
 BIC.h <- n.h * log(rss.h / n.h) + p.h * log(n.h)
 data.frame("Basic_Model" = c(accuracy,MSE,r2,AIC,BIC),
-           "Home_Field_Model" = c(accuracy.h,MSE.h,r2.h,AIC.h,BIC.h))
+           "Home_Field_Model" = c(accuracy.h,MSE.h,r2.h,AIC.h,BIC.h),
+           row.names = c("Accuracy","MSE","R-Squared","AIC","BIC"))
 ```
 
 To my surprise, adding the term for a "home field advantage" reduces model accuracy and increases the mean squared error. My assumption is that since the model is trained on 99.1% of non-neutral games, the estimate for the home field advantage parameter is biased. Therefore, it does not perform well on post-season games where only 10.8% are played at home. I will also note that of the 5 post season games played with a home field advantage, this model correctly picked the winner 4 times, with mean squared error of 94.5. In summary, a model like this would perhaps perform better in NFL post-season prediction where only 1 game (Super Bowl) can be played at a neutral site.

@@ -96,12 +96,12 @@ much.
 
 ### Playoff Accuracy
 
-    ##    Basic_Model Home_Field_Model
-    ## 1    0.6000000        0.5333333
-    ## 2  206.7454302      209.3698378
-    ## 3    0.2326878        0.2187154
-    ## 4 1067.3772498    -2150.0565030
-    ## 5 1691.4466536    -1521.3643629
+    ##            Basic_Model Home_Field_Model
+    ## Accuracy     0.6000000        0.5333333
+    ## MSE        206.7454302      209.3698378
+    ## R-Squared    0.2326878        0.2187154
+    ## AIC       1067.3772498    -2150.0565030
+    ## BIC       1691.4466536    -1521.3643629
 
 To my surprise, adding the term for a “home field advantage” reduces
 model accuracy and increases the mean squared error. My assumption is
