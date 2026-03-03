@@ -9,6 +9,8 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 scores = read.csv('scores.csv')
+scores$neutral = 0
+scores$neutral[c(1,429,596,95,51,20,872,27)] = 1
 postszn = read.csv("bowls25.csv")
 ```
 
@@ -31,7 +33,7 @@ Where:
 
 ### Rankings: 
 
-Below is this model's top 25 rankings, with the strength estimate representing the expected margin of victory against a true average team.
+Below is this model's top 10 rankings, with the strength estimate representing the expected margin of victory against a true average team.
 
 
 ```{r Basic Model set-up, echo=FALSE}
@@ -55,7 +57,7 @@ basic.model = lm(y ~ X + 0)
 b = coef(basic.model)
 b = b - mean(b)
 basic.ranks = data.frame("Team" = teams, "Strength" = b, row.names = 1:nteams)
-head(arrange(basic.ranks,-Strength),25)
+head(arrange(basic.ranks,-Strength),10)
 ```
 
 
@@ -74,10 +76,88 @@ basic.evaluation = postszn %>%
 accuracy = mean(sign(basic.evaluation$margin) == sign(basic.evaluation$pred))
 MSE = mean((basic.evaluation$margin - basic.evaluation$pred)^2)
 r2 = cor(basic.evaluation$margin, basic.evaluation$pred)^2
+n = nrow(basic.df)
+p = length(basic.model$coefficients)
+rss = sum(basic.model$residuals)
+AIC <- n * log(rss / n) + 2 * p
+BIC <- n * log(rss / n) + p * log(n)
 cat("Basic Model: ", "\n",
     "Accuracy:",accuracy,"\n",
     "MSE:",MSE,"\n",
-    "R-Sq. :",r2, "\n")
+    "R-Sq. :",r2, "\n",
+    "AIC:",AIC,"\n",
+    "BIC:", BIC,"\n")
 ```
 
-Now that we have a baseline for postseason prediction
+Now that there is a baseline for postseason prediction, I will construct some higher order models. I will incorporate various indicator variables referencing states about the game. This includes site, AP rank, and more.
+
+## Model 2: Home Field Advantage
+
+The first additional parameter I will investigate is adding an indicator for home field versus neutral site games. This will use the same model as before, 
+
+$$M_{ij} = H + S_i - S_j + \epsilon_{ij} $$
+
+but with the added $H$ term representing the effect of a game being played on a non-neutral site. 
+
+```{r}
+hfa.df = scores[scores$FBS == 1,c("home","away","margin","neutral")]
+hfa.df$homegame = 1 - hfa.df$neutral
+hfa.df$neutral = NULL
+N = nrow(hfa.df)
+teams = unique(hfa.df$home)
+nteams = length(teams)
+home = hfa.df$home
+away = hfa.df$away
+
+X = matrix(0, nrow = N, ncol = nteams+1) # +1 for adding homegame parameter
+i = 2
+for(team in teams){
+X[,i] = (home == team) -
+  (away == team)
+i = i + 1
+}
+X[,1] = hfa.df$homegame
+
+y = hfa.df$margin
+hfa.model = lm(y ~ X + 0)
+b = coef(hfa.model)[-1]
+b = b - mean(b)
+H = coef(hfa.model)[1]
+hfa.ranks = data.frame("Team" = teams, "Strength" = b, row.names = 1:nteams)
+head(arrange(hfa.ranks,-Strength),10)
+```
+
+As expected, since most games are not played on a neutral site, the estimated team strengths did not change much, and the top 10 remained the same. Hopefully, adding the term will help reduce our error in margin prediction, as we can expect it won't change the accuracy by much.
+
+### Playoff Accuracy
+
+```{r}
+hfa.evaluation = postszn %>% 
+  mutate(margin = h.score - a.score) %>% 
+  left_join(hfa.ranks, by = join_by(home == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength = Strength) %>% 
+  left_join(hfa.ranks, by = join_by(away == Team)) %>% 
+  dplyr::select(home,away,margin,neutral,homestrength, awaystrength = Strength) %>% 
+  mutate(homegame = 1- neutral,
+         pred = homestrength - awaystrength + (H * homegame)) %>% 
+  filter(!is.na(homestrength))
+
+accuracy.h = mean(sign(hfa.evaluation$margin) == sign(hfa.evaluation$pred))
+MSE.h = mean((hfa.evaluation$margin - hfa.evaluation$pred)^2)
+r2.h = cor(hfa.evaluation$margin, hfa.evaluation$pred)^2
+n.h = nrow(hfa.df)
+p.h = length(hfa.model$coefficients)
+rss.h = sum(hfa.model$residuals)
+AIC.h <- n.h * log(rss.h / n.h) + 2 * p.h
+BIC.h <- n.h * log(rss.h / n.h) + p.h * log(n.h)
+data.frame("Basic_Model" = c(accuracy,MSE,r2,AIC,BIC),
+           "Home_Field_Model" = c(accuracy.h,MSE.h,r2.h,AIC.h,BIC.h))
+```
+
+To my surprise, adding the term for a "home field advantage" reduces model accuracy and increases the mean squared error. My assumption is that since the model is trained on 99.1% of non-neutral games, the estimate for the home field advantage parameter is biased. Therefore, it does not perform well on post-season games where only 10.8% are played at home. I will also note that of the 5 post season games played with a home field advantage, this model correctly picked the winner 4 times, with mean squared error of 94.5. In summary, a model like this would perhaps perform better in NFL post-season prediction where only 1 game (Super Bowl) can be played at a neutral site.
+
+## Model 3: 
+
+
+
+
