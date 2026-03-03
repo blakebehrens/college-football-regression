@@ -99,7 +99,7 @@ $$M_{ij} = H + S_i - S_j + \epsilon_{ij} $$
 
 but with the added $H$ term representing the effect of a game being played on a non-neutral site. 
 
-```{r}
+```{r echo=F}
 hfa.df = scores[scores$FBS == 1,c("home","away","margin","neutral")]
 hfa.df$homegame = 1 - hfa.df$neutral
 hfa.df$neutral = NULL
@@ -131,7 +131,7 @@ As expected, since most games are not played on a neutral site, the estimated te
 
 ### Playoff Accuracy
 
-```{r}
+```{r echo=F}
 hfa.evaluation = postszn %>% 
   mutate(margin = h.score - a.score) %>% 
   left_join(hfa.ranks, by = join_by(home == Team)) %>% 
