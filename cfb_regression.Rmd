@@ -161,23 +161,20 @@ To my surprise, adding the term for a "home field advantage" reduces model accur
 
 Now, I will investigate how AP rankings can assist the linear model. I will no longer be including the home field parameter model. Further, since AP ranks teams 1-25 and therefore most teams don't have an assigned rank, I will instead use indicators that say whether or not AP ranked that team:
 
-$$M_{ij} = S_i - S_j + [I(\text{AP}_i) * A] - [I(\text{AP}_j) * A] + \epsilon_{ij}$$
-
-or:
-
-$$M_{ij} = S_i - S_j + A * (I(\text{AP}_i) - I(\text{AP}_j)) + \epsilon_{ij}$$
+$$M_{ij} = S_i - S_j + [I(AP_i) *A_h] -[I(AP_j)*A_a] + \epsilon_{ij}$$
 
 Where:
 
 - $I(\text{AP}_i)$ and $I(\text{AP}_j)$ are indicator functions of whether team *i* and *j* are ranked, respectively
 
-- $A$ is the effect on the margin from a team being ranked on the AP poll
+- $A_h,A_a$ are the effects on the margin of victory from a home or away team, respectively, being ranked
 
 ```{r echo=F}
 ap.df = scores[,c("home","away",'margin','home_AP','away_AP')]
-ap.df$home_AP = as.numeric(!is.na(ap.df$home_AP))
-ap.df$away_AP = as.numeric(!is.na(ap.df$away_AP))
-ap.df$AP.diff = ap.df$home_AP - ap.df$away_AP
+ap.df$home10 = as.numeric((!is.na(ap.df$home_AP)) & ap.df$home_AP <= 10)
+ap.df$away10 = as.numeric((!is.na(ap.df$away_AP)) & ap.df$away_AP <= 10)
+ap.df$home25 = as.numeric((!is.na(ap.df$home_AP)) & ap.df$home_AP > 10)
+ap.df$away25 = as.numeric((!is.na(ap.df$away_AP)) & ap.df$away_AP > 10)
 
 N = nrow(ap.df)
 teams = unique(ap.df$home)
@@ -185,26 +182,27 @@ nteams = length(teams)
 home = ap.df$home
 away = ap.df$away
 
-X = matrix(0, nrow = N, ncol = nteams+1)
-i = 2
+X = matrix(0, nrow = N, ncol = nteams)
+i = 1
 for(team in teams){
   X[,i] = (home == team) - (away == team)
   i = i + 1
 }
 
-X[,1] = ap.df$AP.diff
-y = ap.df$margin
-ap.model = lm(y ~ X + 0)
+X = data.frame((cbind(X, ap.df[,c("home10","away10","home25","away25")])))
+colnames(X) = c(teams,"home10","away10","home25","away25")
+X$y = ap.df$margin
+ap.model = lm(y ~ . + 0, data=X)
 
-b = coef(ap.model)[-1]
-AP = coef(ap.model)[1]
+b = coef(ap.model)[1:nteams]
+APs = coef(ap.model)[-c(1:nteams)]
 
 b = b - mean(b)
 ap.ranks = data.frame("Team" = teams, "Strength" = b, row.names = 1:nteams)
 head(arrange(ap.ranks,-Strength),10)
 ```
 
-Here we notice that the top 10 is different (excluding the top 3 teams, Indiana, Ohio State, and Texas Tech). It appears AP rank had more impact on the parameter estimation than including homefield advantage did.
+Here we notice that the top 10 is different (excluding the top 3 teams, Indiana, Ohio State, and Texas Tech). It appears AP rank had more impact on the parameter estimation than including home field advantage did.
 
 
 
@@ -220,6 +218,7 @@ ap.postszn = data.frame(
   Rank = 1:25
 )
 
+
 ap.evaluation = postszn %>% 
   mutate(margin = h.score - a.score) %>% 
   left_join(ap.ranks, by = join_by(home == Team)) %>% 
@@ -234,10 +233,13 @@ ap.evaluation = postszn %>%
   left_join(ap.postszn, by = join_by(away == Team)) %>% 
   dplyr::select(home,away,margin,neutral,homestrength, awaystrength, home.ap, away.ap = Rank) %>% 
   mutate(
-    home.ap = as.numeric(!is.na(home.ap)),
-    away.ap = as.numeric(!is.na(away.ap)),
-    AP.diff = home.ap - away.ap,
-    pred = homestrength - awaystrength + (AP * AP.diff)
+    home10 = as.numeric((!is.na(home.ap)) & home.ap <= 10),
+    away10 = as.numeric((!is.na(away.ap)) & away.ap <= 10),
+    home25 = as.numeric((!is.na(home.ap)) & home.ap > 10),
+    away25 = as.numeric((!is.na(away.ap)) & away.ap > 10),
+    pred = homestrength - awaystrength + 
+      (APs[[1]] * home10) + (APs[[2]] * away10) + 
+      (APs[[3]] * home25) + (APs[[4]] * away25)
   )
 
 accuracy.a = mean(sign(ap.evaluation$margin) == sign(ap.evaluation$pred))
@@ -249,6 +251,6 @@ rss.a = sum(ap.model$residuals)
 AIC.a <- n.a * log(rss.a / n.a) + 2 * p.a
 BIC.a <- n.a * log(rss.a / n.a) + p.a * log(n.a)
 data.frame("Basic_Model" = c(accuracy,MSE,r2,AIC,BIC),
-           "Home_Field_Model" = c(accuracy.a,MSE.a,r2.a,AIC.a,BIC.a),
+           "AP_Model" = c(accuracy.a,MSE.a,r2.a,AIC.a,BIC.a),
            row.names = c("Accuracy","MSE","R-Squared","AIC","BIC"))
 ```

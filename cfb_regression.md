@@ -1,7 +1,7 @@
 College Football Regression
 ================
 Blake Behrens
-2026-03-03
+2026-03-08
 
 # Linear Regression in College Football Prediction
 
@@ -123,13 +123,7 @@ assigned rank, I will instead use indicators that say whether or not AP
 ranked that team:
 
 ``` math
-M_{ij} = S_i - S_j + [I(\text{AP}_i) * A] - [I(\text{AP}_j) * A] + \epsilon_{ij}
-```
-
-or:
-
-``` math
-M_{ij} = S_i - S_j + A * (I(\text{AP}_i) - I(\text{AP}_j)) + \epsilon_{ij}
+M_{ij} = S_i - S_j + [I(AP_i) *A_h] -[I(AP_j)*A_a] + \epsilon_{ij}
 ```
 
 Where:
@@ -137,30 +131,30 @@ Where:
 - $`I(\text{AP}_i)`$ and $`I(\text{AP}_j)`$ are indicator functions of
   whether team *i* and *j* are ranked, respectively
 
-- $`A`$ is the effect on the margin from a team being ranked on the AP
-  poll
+- $`A_h,A_a`$ are the effects on the margin of victory from a home or
+  away team, respectively, being ranked
 
 <!-- -->
 
     ##    Team Strength
-    ## 1    IU 42.94552
-    ## 2   OSU 39.46485
-    ## 3   TTU 37.46618
-    ## 4    ND 36.30404
-    ## 5   ORE 34.04779
-    ## 6   MIA 30.43378
-    ## 7   ALA 27.67852
-    ## 8  UTAH 27.26500
-    ## 9  TA&M 26.57405
-    ## 10  UGA 26.48997
+    ## 1    IU 43.38999
+    ## 2   OSU 39.63486
+    ## 3   TTU 37.26240
+    ## 4    ND 36.36653
+    ## 5   ORE 34.45597
+    ## 6   MIA 29.92305
+    ## 7   ALA 27.37165
+    ## 8  TA&M 27.19228
+    ## 9  UTAH 26.93076
+    ## 10  UGA 26.63548
 
 Here we notice that the top 10 is different (excluding the top 3 teams,
 Indiana, Ohio State, and Texas Tech). It appears AP rank had more impact
-on the parameter estimation than including homefield advantage did.
+on the parameter estimation than including home field advantage did.
 
-    ##            Basic_Model Home_Field_Model
-    ## Accuracy     0.6000000        0.5434783
-    ## MSE        206.7454302      250.8895222
-    ## R-Squared    0.2326878        0.1090773
-    ## AIC       1067.3772498     1072.6925024
-    ## BIC       1691.4466536     1728.6272650
+    ##            Basic_Model     AP_Model
+    ## Accuracy     0.6000000 5.434783e-01
+    ## MSE        206.7454302 2.677898e+02
+    ## R-Squared    0.2326878 8.587117e-02
+    ## AIC       1067.3772498 8.990160e+02
+    ## BIC       1691.4466536 1.569314e+03
